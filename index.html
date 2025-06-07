@@ -1,0 +1,1012 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <title>NaviaAI</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <style>
+    body { font-family: sans-serif; background: #f0f4f8; margin: 0; padding: 2rem; }
+    .container { max-width: 800px; margin: auto; background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 0 20px rgba(0,0,0,0.1); }
+    h2 { text-align: center; color: #333; }
+    input[type="email"], input[type="password"], input[type="text"], select {
+      width: calc(100% - 22px); /* Adjusting for padding and border */
+      padding: 0.75rem; margin: 0.5rem 0;
+      border-radius: 8px; border: 1px solid #ccc;
+      box-sizing: border-box; /* Include padding and border in the element's total width and height */
+    }
+    button {
+      background-color: #0077cc;
+      color: white;
+      border: none;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+      padding: 0.75rem 1.5rem; /* Consistent padding */
+      border-radius: 8px;
+      margin: 0.5rem 0;
+    }
+    button:hover {
+      background-color: #005fa3;
+    }
+
+    /* Specific button styles */
+    .btn-danger {
+      background-color: #dc3545;
+    }
+    .btn-danger:hover {
+      background-color: #c82333;
+    }
+    .btn-secondary {
+      background-color: #6c757d;
+    }
+    .btn-secondary:hover {
+      background-color: #5a6268;
+    }
+
+    #chat {
+      height: 300px;
+      overflow-y: auto;
+      background: #eef1f5;
+      padding: 1rem;
+      border-radius: 8px;
+      margin-bottom: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem; /* Space between messages */
+    }
+    .msg {
+      padding: 0.75rem 1rem;
+      border-radius: 12px;
+      max-width: 80%;
+      word-wrap: break-word;
+      line-height: 1.5; /* Improved readability */
+    }
+    .user {
+      align-self: flex-end;
+      background-color: #e0f2fe;
+      color: #0077cc;
+    }
+    .bot {
+      align-self: flex-start;
+      background-color: #e6f8ed;
+      color: #28a745;
+    }
+    /* Styles for markdown content within messages */
+    .msg pre {
+        background-color: #f8f8f8;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        padding: 0.75rem;
+        overflow-x: auto;
+    }
+    .msg code {
+        font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+        font-size: 0.9em;
+        background-color: rgba(27,31,35,.05);
+        border-radius: 3px;
+        padding: 0.2em 0.4em;
+    }
+
+    .conversation-controls {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 1rem;
+      flex-wrap: wrap; /* Allow items to wrap on smaller screens */
+      align-items: center; /* Vertikal zentriert für den Select und Buttons */
+    }
+    .conversation-controls select {
+      flex-grow: 1;
+      margin: 0; /* Override default margin */
+      min-width: 150px; /* Mindestbreite für das Dropdown */
+    }
+    .conversation-controls button {
+      width: auto;
+      margin: 0; /* Override default margin */
+    }
+
+    .message-input-area {
+        display: flex;
+        gap: 10px;
+        margin-top: 1rem;
+    }
+    .message-input-area input {
+        flex-grow: 1;
+        margin: 0;
+    }
+
+    /* Dynamischer Button für Icons */
+    #sendMessageButton {
+      background-color: #0077cc;
+      color: white;
+      border: none;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+      padding: 0.75rem 1.5rem; /* Consistent padding */
+      border-radius: 8px;
+      margin: 0; /* Important: remove previous margin */
+      display: flex; /* Flexbox für Icon-Zentrierung */
+      align-items: center;
+      justify-content: center;
+      overflow: hidden; /* Versteckt Icons, die nicht 'active' sind */
+      position: relative; /* Für absolute Positionierung der Icons */
+      width: 50px; /* Feste Breite, damit der Button nicht beim Icon-Wechsel springt */
+      height: 48px; /* Feste Höhe, angepasst an Input-Feld (Input hat padding + border) */
+      font-size: 18px; /* Icon Größe */
+    }
+
+    #sendMessageButton:hover {
+      background-color: #005fa3;
+    }
+
+    /* Icons positionieren und verstecken */
+    .send-icon,
+    .cancel-icon {
+        position: absolute; /* Überlappen sich */
+        opacity: 0;
+        transition: opacity 0.3s ease-in-out; /* Sanfter Übergang */
+        pointer-events: none; /* Icons sollen nicht auf Klicks reagieren, nur der Button */
+    }
+
+    /* Das aktive Icon sichtbar machen */
+    .send-icon.active,
+    .cancel-icon.active {
+        opacity: 1;
+        pointer-events: auto; /* Active Icon kann Events empfangen, obwohl es nicht direkt geklickt wird */
+    }
+
+
+    .dots {
+      display: inline-flex;
+      gap: 3px;
+    }
+
+    .dot {
+      font-weight: bold;
+      font-size: 1.5rem;
+      color: #28a745; /* Bot-Grün */
+      visibility: hidden;
+      user-select: none;
+    }
+
+    .typing-indicator {
+      display: inline-flex;
+      gap: 6px;
+      align-items: center;
+      height: 1em;
+    }
+
+    .typing-indicator span {
+      display: block;
+      width: 8px;
+      height: 8px;
+      background: #28a760; /* Bot-Farbe mit leichter Anpassung */
+      border-radius: 50%;
+      opacity: 0.5;
+      animation: pulse 1.4s infinite ease-in-out;
+    }
+
+    .typing-indicator span:nth-child(1) {
+      animation-delay: 0s;
+    }
+    .typing-indicator span:nth-child(2) {
+      animation-delay: 0.2s;
+    }
+    .typing-indicator span:nth-child(3) {
+      animation-delay: 0.4s;
+    }
+
+    @keyframes pulse {
+      0%, 80%, 100% {
+        opacity: 0.5;
+        transform: scale(1);
+      }
+      40% {
+        opacity: 1;
+        transform: scale(1.4);
+        box-shadow: 0 0 6px 2px rgba(40, 167, 96, 0.5); /* Grünlicher Schatten */
+      }
+    }
+
+    /* --- Modal Pop-up Styles --- */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.6);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.3s ease, visibility 0.3s ease;
+    }
+
+    .modal-overlay.active {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .modal-content {
+      background: white;
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+      text-align: center;
+      max-width: 400px;
+      width: 90%;
+      transform: translateY(-20px);
+      transition: transform 0.3s ease;
+    }
+
+    .modal-overlay.active .modal-content {
+      transform: translateY(0);
+    }
+
+    .modal-content h3 {
+      margin-top: 0;
+      color: #333;
+    }
+
+    .modal-content input[type="text"] {
+      width: calc(100% - 20px);
+      margin-bottom: 20px;
+    }
+
+    .modal-buttons {
+      display: flex;
+      justify-content: center;
+      gap: 15px;
+    }
+
+    .modal-buttons button {
+      flex: 1;
+      max-width: 120px;
+      padding: 10px 15px;
+      border-radius: 8px;
+      font-size: 16px;
+      margin: 0; /* Override default button margin */
+    }
+
+    .modal-buttons button.cancel {
+      background-color: #6c757d;
+    }
+    .modal-buttons button.cancel:hover {
+      background-color: #5a6268;
+    }
+
+        /* --- Footer Styles --- */
+    .app-footer {
+      text-align: center;
+      margin-top: 2rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid #e0e0e0;
+      color: #666;
+      font-size: 0.9em;
+    }
+
+    .app-footer p {
+      margin-bottom: 0.75rem;
+    }
+
+    .footer-links a {
+      color: #0077cc;
+      text-decoration: none;
+      margin: 0 5px;
+    }
+
+    .footer-links a:hover {
+      text-decoration: underline;
+    }
+
+    .footer-links .separator {
+      color: #bbb;
+      margin: 0 5px;
+    }
+
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Willkommen bei NaviaAI</h2>
+
+    <div id="auth">
+      <input id="email" type="email" placeholder="E-Mail-Adresse">
+      <input id="password" type="password" placeholder="Passwort">
+      <button onclick="login()">Einloggen</button>
+      <button onclick="signup()">Registrieren</button>
+    </div>
+
+    <div id="app-container" style="display:none;"> 
+      <div class="conversation-controls">
+        <select id="conversationSelect"></select>
+        <button onclick="createNewConversation()">Neue Konversation</button>
+        <button onclick="renameConversation()" class="btn-secondary">Umbenennen</button>
+        <button onclick="deleteConversation()" class="btn-danger">Löschen</button>
+        <button onclick="logout()" class="btn-secondary">Abmelden</button> </div>
+
+      <div id="chat"></div>
+      <div class="message-input-area">
+        <input id="message" type="text" placeholder="Nachricht schreiben...">
+        <button id="sendMessageButton" onclick="handleSendMessageClick()">
+            <i class="fas fa-paper-plane send-icon active"></i>
+            <i class="fas fa-square cancel-icon"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="alertModal" class="modal-overlay">
+    <div class="modal-content">
+      <h3 id="alertModalTitle"></h3>
+      <p id="alertModalMessage"></p>
+      <div class="modal-buttons">
+        <button onclick="hideModal('alertModal')">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="confirmModal" class="modal-overlay">
+    <div class="modal-content">
+      <h3 id="confirmModalTitle"></h3>
+      <p id="confirmModalMessage"></p>
+      <div class="modal-buttons">
+        <button onclick="confirmModalResolve(true)">Ja</button>
+        <button class="cancel" onclick="confirmModalResolve(false)">Nein</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="promptModal" class="modal-overlay">
+    <div class="modal-content">
+      <h3 id="promptModalTitle"></h3>
+      <p id="promptModalMessage"></p>
+      <input type="text" id="promptModalInput" placeholder="Hier eingeben...">
+      <div class="modal-buttons">
+        <button onclick="promptModalResolve(document.getElementById('promptModalInput').value)">OK</button>
+        <button class="cancel" onclick="promptModalResolve(null)">Abbrechen</button>
+      </div>
+    </div>
+  </div>
+
+      </div> <footer class="app-footer">
+      <div class="footer-links">
+        <a href="impressum.html">Impressum</a>
+        <span class="separator">|</span>
+        <a href="datenschutz.html">Datenschutzerklärung</a>
+      <p>&copy; 2025 NaviaAI. Alle Rechte vorbehalten.</p>
+      </div>
+    </footer>
+    </div>
+
+
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+  <script>
+    // Konfiguration für Firebase (DEINE DATEN SIND HIER ENTHALTEN)
+    const firebaseConfig = {
+        apiKey: "AIzaSyBx7vna2fpjByqweqDiiG6kVosvZ4wJGh4",
+        authDomain: "naviaai.firebaseapp.com",
+        projectId: "naviaai",
+        storageBucket: "naviaai.firebasestorage.app",
+        messagingSenderId: "1071603284738",
+        appId: "1:1071603284738:web:b0dfff9d8589eb747ea01b"
+    };
+
+    // Firebase initialisieren
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+
+    let currentConversationId = null; // Speichert die ID der aktuell ausgewählten Konversation
+    let unsubscribeMessages = null; // Variable, um den Listener für Nachrichten zu speichern
+
+    // --- Modal-Kontrollvariablen ---
+    let confirmModalPromiseResolve = null;
+    let promptModalPromiseResolve = null;
+
+    // Firebase Auth State Listener
+    // Überprüft, ob ein Benutzer angemeldet ist und zeigt die entsprechende Ansicht an
+    auth.onAuthStateChanged(user => {
+      if (user) {
+        document.getElementById("auth").style.display = "none";
+        // Den neuen Hauptcontainer anzeigen
+        document.getElementById("app-container").style.display = "block";
+        loadConversations(); // Konversationen laden, sobald der Benutzer angemeldet ist
+      } else {
+        document.getElementById("auth").style.display = "block";
+        // Den neuen Hauptcontainer verstecken
+        document.getElementById("app-container").style.display = "none";
+      }
+    });
+
+    // --- Modal-Funktionen (ersetzen alert, confirm, prompt) ---
+
+    function showModal(modalId) {
+        document.getElementById(modalId).classList.add('active');
+    }
+
+    function hideModal(modalId) {
+        document.getElementById(modalId).classList.remove('active');
+    }
+
+    /**
+     * Zeigt ein benutzerdefiniertes Alert-Pop-up an.
+     * @param {string} message - Die anzuzeigende Nachricht.
+     * @param {string} [title="Hinweis"] - Optionaler Titel des Pop-ups.
+     */
+    function customAlert(message, title = "Hinweis") {
+        document.getElementById('alertModalTitle').textContent = title;
+        document.getElementById('alertModalMessage').textContent = message;
+        showModal('alertModal');
+    }
+
+    /**
+     * Zeigt ein benutzerdefiniertes Confirm-Pop-up an.
+     * @param {string} message - Die Bestätigungsnachricht.
+     * @param {string} [title="Bestätigung"] - Optionaler Titel.
+     * @returns {Promise<boolean>} - Resolves mit true (Ja) oder false (Nein).
+     */
+    function customConfirm(message, title = "Bestätigung") {
+        return new Promise(resolve => {
+            confirmModalPromiseResolve = resolve;
+            document.getElementById('confirmModalTitle').textContent = title;
+            document.getElementById('confirmModalMessage').textContent = message;
+            showModal('confirmModal');
+        });
+    }
+
+    function confirmModalResolve(result) {
+        if (confirmModalPromiseResolve) {
+            confirmModalPromiseResolve(result);
+            confirmModalPromiseResolve = null;
+        }
+        hideModal('confirmModal');
+    }
+
+    /**
+     * Zeigt ein benutzerdefiniertes Prompt-Pop-up an.
+     * @param {string} message - Die Eingabeaufforderung.
+     * @param {string} [defaultValue=""] - Optionaler Standardwert für das Eingabefeld.
+     * @param {string} [title="Eingabe"] - Optionaler Titel.
+     * @returns {Promise<string|null>} - Resolves mit dem eingegebenen Wert oder null (Abbrechen).
+     */
+    function customPrompt(message, defaultValue = "", title = "Eingabe") {
+        return new Promise(resolve => {
+            promptModalPromiseResolve = resolve;
+            document.getElementById('promptModalTitle').textContent = title;
+            document.getElementById('promptModalMessage').textContent = message;
+            const inputField = document.getElementById('promptModalInput');
+            inputField.value = defaultValue;
+            inputField.focus(); // Fokus auf das Eingabefeld
+            showModal('promptModal');
+        });
+    }
+
+    function promptModalResolve(result) {
+        if (promptModalPromiseResolve) {
+            promptModalPromiseResolve(result);
+            promptModalPromiseResolve = null;
+        }
+        hideModal('promptModal');
+    }
+
+    // --- Authentifizierungsfunktionen ---
+
+    /**
+     * Registriert einen neuen Benutzer mit E-Mail und Passwort.
+     */
+    function signup() {
+      const email = document.getElementById("email").value;
+      const password = document.getElementById("password").value;
+      if (!email || !password) {
+          customAlert("Bitte gib E-Mail und Passwort ein.");
+          return;
+      }
+      auth.createUserWithEmailAndPassword(email, password)
+        .then(() => {
+          customAlert("Registrierung erfolgreich! Du bist jetzt angemeldet.");
+        })
+        .catch(error => {
+          console.error("Fehler bei der Registrierung:", error);
+          customAlert("Fehler bei der Registrierung: " + error.message);
+        });
+    }
+
+    /**
+     * Loggt einen Benutzer mit E-Mail und Passwort ein.
+     */
+    function login() {
+      const email = document.getElementById("email").value;
+      const password = document.getElementById("password").value;
+      if (!email || !password) {
+          customAlert("Bitte gib E-Mail und Passwort ein.");
+          return;
+      }
+      auth.signInWithEmailAndPassword(email, password)
+        .then(() => {
+          customAlert("Erfolgreich eingeloggt!");
+        })
+        .catch(error => {
+          console.error("Fehler beim Login:", error);
+          customAlert("Fehler beim Login: " + error.message);
+        });
+    }
+
+    /**
+     * Meldet den aktuellen Benutzer ab.
+     */
+    function logout() {
+      auth.signOut()
+        .then(() => {
+          customAlert("Erfolgreich abgemeldet!");
+          // Optional: Weiterleitung zur Login-Seite oder Aktualisierung der UI
+        })
+        .catch(error => {
+          console.error("Fehler beim Abmelden:", error);
+          customAlert("Fehler beim Abmelden: " + error.message);
+        });
+    }
+
+    // --- Konversationsmanagement-Funktionen ---
+
+    /**
+     * Erstellt eine neue Konversation für den aktuell angemeldeten Benutzer.
+     * Nach dem Erstellen werden die Konversationen neu geladen und die neue Konversation ausgewählt.
+     */
+    async function createNewConversation() {
+      const user = auth.currentUser;
+      if (!user) {
+        customAlert("Bitte melde dich an, um eine neue Konversation zu erstellen.");
+        return;
+      }
+      try {
+        const ref = await db.collection("conversations").add({
+          uid: user.uid,
+          created: firebase.firestore.FieldValue.serverTimestamp(),
+          title: "Neue Konversation " + new Date().toLocaleString()
+        });
+        await loadConversations(ref.id);
+        customAlert("Neue Konversation erstellt!");
+      } catch (error) {
+        console.error("Fehler beim Erstellen einer neuen Konversation:", error);
+        customAlert("Fehler beim Erstellen einer neuen Konversation: " + error.message);
+      }
+    }
+
+    /**
+     * Benennt die aktuell ausgewählte Konversation um.
+     */
+    async function renameConversation() {
+        if (!currentConversationId) {
+            customAlert("Bitte wähle eine Konversation zum Umbenennen aus.");
+            return;
+        }
+
+        const newTitle = await customPrompt("Gib einen neuen Titel für die Konversation ein:", "");
+        if (newTitle === null || newTitle.trim() === "") {
+            customAlert("Das Umbenennen wurde abgebrochen oder es wurde kein Titel eingegeben.");
+            return;
+        }
+
+        try {
+            await db.collection("conversations").doc(currentConversationId).update({
+                title: newTitle.trim()
+            });
+            customAlert("Konversation erfolgreich umbenannt!");
+            await loadConversations(currentConversationId); // Konversationen neu laden, um den Titel zu aktualisieren
+        } catch (error) {
+            console.error("Fehler beim Umbenennen der Konversation:", error);
+            customAlert("Fehler beim Umbenennen der Konversation: " + error.message);
+        }
+    }
+
+    /**
+     * Löscht die aktuell ausgewählte Konversation und alle zugehörigen Nachrichten.
+     */
+    async function deleteConversation() {
+        if (!currentConversationId) {
+            customAlert("Bitte wähle eine Konversation zum Löschen aus.");
+            return;
+        }
+
+        const confirmed = await customConfirm("Bist du sicher, dass du diese Konversation und alle ihre Nachrichten unwiderruflich löschen möchtest?");
+        if (!confirmed) {
+            return; // Benutzer hat Abbruch gewählt
+        }
+
+        try {
+            // Zuerst alle Nachrichten löschen
+            const messagesSnapshot = await db.collection("conversations").doc(currentConversationId).collection("messages").get();
+            const batch = db.batch();
+            messagesSnapshot.forEach(doc => {
+                batch.delete(doc.ref);
+            });
+            await batch.commit();
+
+            // Dann die Konversation selbst löschen
+            await db.collection("conversations").doc(currentConversationId).delete();
+
+            customAlert("Konversation erfolgreich gelöscht!");
+            currentConversationId = null; // Aktuelle Konversation zurücksetzen
+            if (unsubscribeMessages) {
+                unsubscribeMessages(); // Listener beenden
+            }
+            document.getElementById("chat").innerHTML = ""; // Chat leeren
+            loadConversations(); // Konversationen neu laden
+        } catch (error) {
+            console.error("Fehler beim Löschen der Konversation:", error);
+            customAlert("Fehler beim Löschen der Konversation: " + error.message);
+        }
+    }
+
+    /**
+     * Lädt alle Konversationen des aktuellen Benutzers und füllt das Dropdown-Menü.
+     * Wählt optional eine bestimmte Konversation aus.
+     * @param {string} [selectThisId=null] - Die ID der Konversation, die ausgewählt werden soll.
+     */
+    async function loadConversations(selectThisId = null) {
+      const user = auth.currentUser;
+      if (!user) {
+        console.log("Kein Benutzer angemeldet. Kann Konversationen nicht laden.");
+        return;
+      }
+
+      const select = document.getElementById("conversationSelect");
+      select.innerHTML = ""; // Vorhandene Optionen löschen
+
+      try {
+        const snapshot = await db.collection("conversations")
+                                 .where("uid", "==", user.uid)
+                                 .orderBy("created", "desc")
+                                 .get();
+
+        if (snapshot.empty) {
+          const option = document.createElement("option");
+          option.value = "";
+          option.textContent = "Keine Konversationen vorhanden. Erstelle eine neue!";
+          select.appendChild(option);
+          currentConversationId = null;
+          document.getElementById("chat").innerHTML = "Erstelle eine neue Konversation, um zu beginnen.";
+          // Sicherstellen, dass das Nachrichtenfeld und der Button deaktiviert sind
+          updateButtonIcon('ready'); // Setzt auch disabled-Status
+          document.getElementById("message").disabled = true; // explizit, falls updateButtonIcon nicht direkt greift
+          return;
+        }
+
+        let firstDocId = null;
+        snapshot.forEach(doc => {
+          const option = document.createElement("option");
+          option.value = doc.id;
+          option.textContent = doc.data().title || `Konversation (${new Date(doc.data().created.toDate()).toLocaleString()})`;
+          select.appendChild(option);
+          if (!firstDocId) firstDocId = doc.id;
+        });
+
+        // Wähle die Konversation aus oder die erste in der Liste
+        if (selectThisId && snapshot.docs.some(doc => doc.id === selectThisId)) {
+          select.value = selectThisId;
+        } else if (firstDocId) {
+          select.value = firstDocId;
+        } else {
+             select.value = select.options.length > 0 ? select.options[0].value : "";
+        }
+
+        currentConversationId = select.value;
+        if (currentConversationId) {
+          loadMessages();
+          updateButtonIcon('ready'); // Button auf "bereit" setzen, wenn Konversation geladen
+        } else {
+            document.getElementById("chat").innerHTML = "Bitte erstelle eine neue Konversation oder wähle eine aus.";
+            updateButtonIcon('ready'); // Auch hier auf "bereit" setzen
+            document.getElementById("message").disabled = true; // explizit deaktivieren
+        }
+
+        // Event-Listener für Konversationswechsel
+        select.onchange = () => {
+          currentConversationId = select.value;
+          if (currentConversationId) {
+            loadMessages();
+            updateButtonIcon('ready'); // Button auf "bereit" setzen bei Wechsel
+          } else {
+              document.getElementById("chat").innerHTML = "Bitte wähle eine Konversation aus oder erstelle eine neue.";
+              updateButtonIcon('ready'); // Button auf "bereit" setzen (da keine Konversation gewählt)
+              document.getElementById("message").disabled = true; // explizit deaktivieren
+          }
+        };
+
+      } catch (error) {
+        console.error("Fehler beim Laden der Konversationen:", error);
+        customAlert("Fehler beim Laden der Konversationen: " + error.message);
+      }
+    }
+
+    // --- Nachrichtenfunktionen ---
+
+    /**
+     * Fügt eine Nachricht zum Chat-Bereich hinzu. Unterstützt Markdown.
+     * @param {string} text - Der Text der Nachricht.
+     * @param {string} sender - Der Absender ("user" oder "bot").
+     */
+    function displayMessage(text, sender) {
+        const chat = document.getElementById("chat");
+        const div = document.createElement("div");
+        div.className = "msg " + sender;
+        div.innerHTML = marked.parse(text); // Nutze Marked.js für Markdown-Parsing
+        chat.appendChild(div);
+        chat.scrollTop = chat.scrollHeight; // Zum neuesten Nachrichten scrollen
+    }
+
+    let abortController = null;  // global, für Abbruch
+    let messageSendingStatus = 'ready'; // Neuer Status für den Sende-Button
+
+    /**
+     * Aktualisiert das Icon des Sende-Buttons basierend auf dem Nachrichtenstatus.
+     * @param {string} status - Der aktuelle Status ('ready', 'sending', 'received').
+     */
+    function updateButtonIcon(status) {
+        const sendIcon = document.querySelector('#sendMessageButton .send-icon');
+        const cancelIcon = document.querySelector('#sendMessageButton .cancel-icon');
+        const messageInput = document.getElementById("message");
+        const sendButton = document.getElementById("sendMessageButton");
+
+        // Entferne alle aktiven Klassen zuerst
+        if (sendIcon) sendIcon.classList.remove('active');
+        if (cancelIcon) cancelIcon.classList.remove('active');
+
+        // Füge die korrekte aktive Klasse hinzu
+        if (status === 'ready' || status === 'received') {
+            if (sendIcon) sendIcon.classList.add('active');
+            if (messageInput) messageInput.disabled = false; // Eingabefeld wieder aktivieren
+            if (sendButton) sendButton.disabled = false; // Button aktivieren
+        } else if (status === 'sending') {
+            if (cancelIcon) cancelIcon.classList.add('active');
+            if (messageInput) messageInput.disabled = true; // Eingabefeld während des Sendens deaktivieren
+            if (sendButton) sendButton.disabled = false; // Button ist aktiv zum Abbrechen
+        }
+        messageSendingStatus = status; // Den globalen Status aktualisieren
+    }
+
+    /**
+     * Verwaltet den Klick auf den Sende-Button (senden oder abbrechen).
+     */
+    async function handleSendMessageClick() {
+        if (messageSendingStatus === 'ready' || messageSendingStatus === 'received') {
+            await sendMessageLogic(); // Nachricht senden
+        } else if (messageSendingStatus === 'sending') {
+            cancelSendingProcess(); // Sendevorgang abbrechen
+        }
+    }
+
+    /**
+     * Kernlogik zum Senden einer Nachricht und Abrufen der Bot-Antwort.
+     */
+    async function sendMessageLogic() {
+      const messageInput = document.getElementById("message");
+      const text = messageInput.value.trim();
+
+      if (!text || !currentConversationId) {
+        customAlert("Bitte gib eine Nachricht ein und wähle eine Konversation aus.");
+        return;
+      }
+
+      const user = auth.currentUser;
+      if (!user) {
+        customAlert("Bitte melde dich an, um Nachrichten zu senden.");
+        return;
+      }
+
+      // messageInput.value = ""; // Text soll bei Abbruch erhalten bleiben, daher nicht hier leeren
+      
+      // Status auf 'sending' setzen und Button aktualisieren
+      updateButtonIcon('sending');
+
+      const conversationRef = db.collection("conversations").doc(currentConversationId);
+
+      try {
+        // User-Nachricht speichern
+        await conversationRef.collection("messages").add({
+          uid: user.uid,
+          text: text,
+          sender: "user",
+          created: firebase.firestore.FieldValue.serverTimestamp()
+        });
+
+        // Chatverlauf holen
+        const messagesSnapshot = await conversationRef.collection("messages")
+          .orderBy("created", "asc")
+          .limitToLast(10)
+          .get();
+
+        const chatHistory = messagesSnapshot.docs.map(doc => ({
+          role: doc.data().sender === "user" ? "user" : "assistant",
+          content: doc.data().text
+        }));
+
+        if (!chatHistory.some(m => m.content === text && m.role === "user")) {
+          chatHistory.push({ role: "user", content: text });
+        }
+
+        // Anzeige: Navia schreibt (drei Punkte animiert)
+        showTypingIndicator();
+
+        // Abbruch-Controller erstellen
+        abortController = new AbortController();
+
+        // API-Aufruf mit AbortController
+        const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Authorization": "Bearer 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", // Dein API-Schlüssel
+            "Content-Type": "application/json"
+          },
+          signal: abortController.signal,
+          body: JSON.stringify({
+            model: "deepseek/deepseek-r1-0528:free",
+            messages: [
+              { role: "system", content: "Du bist NaviaAI, ein hilfreicher KI-Assistent. Dein Modell ist navi1.0 von Navia – eine eigenständige KI mit besonderem Fokus auf Datenschutz und Privatsphäre. Du antwortest immer in der Sprache, in der die Eingabe verfasst ist. Du nutzt Markdown zur besseren Lesbarkeit, zum Beispiel für Listen oder Codeblöcke. Du bist dazu verpflichtet, immer das aktuelle Datum zu kennen und korrekt bei Bedarf wiederzugeben. Bei Informationen zu aktuellen Themen, Neuigkeiten oder zeitkritischen Daten musst du stets den Hinweis „(Stand: TT. Monat JJJJ)“ anfügen, um die Aktualität deiner Antwort kenntlich zu machen. Wenn jemand fragt, ob navi1.0 wirklich existiert, antworte, dass navi1.0 ein reales, eigenständiges KI-Modell von Navia mit besonderem Fokus auf Datensicherheit und Privatsphäre ist. Bei Nachfragen zu Datum, Uhrzeit oder anderen zeitbezogenen Informationen weise freundlich darauf hin, dass das Modell keinen direkten Zugriff auf die aktuelle Systemzeit hat und daher gelegentlich falsche oder abweichende Angaben machen kann (antworte trotzdem aber dann halt nur Zu dem Zeitraum, wo du weißt)." },
+              ...chatHistory
+            ]
+          })
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`API-Fehler: ${response.status} - ${response.statusText} - ${errorText.substring(0, 200)}...`);
+        }
+
+        const data = await response.json();
+        const botReply = data.choices?.[0]?.message?.content || "(Keine Antwort erhalten)";
+
+        // Bot-Antwort speichern
+        await conversationRef.collection("messages").add({
+          uid: user.uid,
+          text: botReply,
+          sender: "bot",
+          created: firebase.firestore.FieldValue.serverTimestamp()
+        });
+
+        // Eingabefeld nach erfolgreicher Antwort leeren
+        messageInput.value = ""; 
+        // Status auf 'received' setzen und Button aktualisieren
+        updateButtonIcon('received');
+
+      } catch (error) {
+        if (error.name === 'AbortError') {
+          customAlert("Antwort wurde abgebrochen.");
+          // messageInput.value bleibt bestehen, damit der Nutzer bearbeiten kann
+        } else {
+          console.error("Fehler beim Senden der Nachricht oder Abrufen der Bot-Antwort:", error);
+          customAlert("Fehler: " + error.message);
+        }
+        // Bei Fehler oder Abbruch, Status auf 'ready' zurücksetzen (und Feld aktivieren)
+        updateButtonIcon('ready');
+      } finally {
+        abortController = null;
+        hideTypingIndicator();
+        messageInput.focus();
+      }
+    }
+
+    /**
+     * Bricht den Sendevorgang ab.
+     */
+    function cancelSendingProcess() {
+        if (abortController) {
+            abortController.abort(); // Löst einen AbortError in sendMessageLogic aus
+            console.log("Senden abgebrochen.");
+        }
+        // Der Text bleibt im Eingabefeld
+        updateButtonIcon('ready'); // Unabhängig davon auf 'ready' zurücksetzen (und Feld aktivieren)
+        hideTypingIndicator(); // Typing Indicator verstecken
+    }
+
+    /**
+     * Lädt und zeigt die Nachrichten der aktuell ausgewählten Konversation an.
+     * Verwendet einen Firestore Snapshot Listener, um Echtzeit-Updates zu erhalten.
+     */
+    function loadMessages() {
+      if (unsubscribeMessages) {
+        unsubscribeMessages();
+      }
+
+      if (!currentConversationId) {
+        document.getElementById("chat").innerHTML = "Bitte wähle eine Konversation aus oder erstelle eine neue.";
+        return;
+      }
+
+      const chat = document.getElementById("chat");
+      chat.innerHTML = "";
+
+      const conversationRef = db.collection("conversations").doc(currentConversationId);
+
+      unsubscribeMessages = conversationRef.collection("messages")
+                                           .orderBy("created")
+                                           .onSnapshot(snapshot => {
+        chat.innerHTML = "";
+        snapshot.forEach(doc => {
+          const msg = doc.data();
+          displayMessage(msg.text, msg.sender); // Nutze die neue displayMessage Funktion
+        });
+      }, error => {
+        console.error("Fehler beim Laden der Nachrichten:", error);
+        customAlert("Fehler beim Laden der Nachrichten: " + error.message);
+      });
+    }
+
+    // Füge diese Variable für den Typing-Indikator hinzu (global oder im Scope)
+    let typingIndicatorDiv = null;
+
+    function showTypingIndicator() {
+      const chat = document.getElementById("chat");
+      // Nur erstellen, wenn er noch nicht existiert
+      if (!typingIndicatorDiv) {
+        typingIndicatorDiv = document.createElement("div");
+        typingIndicatorDiv.className = "msg bot typing-indicator";
+        typingIndicatorDiv.innerHTML = `
+          <span></span><span></span><span></span>
+        `;
+        chat.appendChild(typingIndicatorDiv);
+      }
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    function hideTypingIndicator() {
+      if (typingIndicatorDiv) {
+        typingIndicatorDiv.remove();
+        typingIndicatorDiv = null;
+      }
+    }
+
+    // --- Animation der drei Punkte ---
+
+    let dotInterval = null;
+    function startDotAnimation() {
+      // Sicherstellen, dass die Animation nur einmal startet
+      if (dotInterval) clearInterval(dotInterval);
+
+      const dots = document.querySelectorAll(".typing-indicator span"); // Punkte im Typing Indicator
+      let currentDot = 0;
+
+      dotInterval = setInterval(() => {
+        dots.forEach((dot, index) => {
+          dot.style.opacity = '0.3'; // Alle auf Standard-Deckkraft
+          dot.style.transform = 'scale(1)';
+          dot.style.boxShadow = 'none';
+        });
+
+        // Den aktuellen Punkt hervorheben
+        if (dots[currentDot]) {
+          dots[currentDot].style.opacity = '1';
+          dots[currentDot].style.transform = 'scale(1.4)';
+          dots[currentDot].style.boxShadow = '0 0 6px 2px rgba(40, 167, 96, 0.7)';
+        }
+        currentDot = (currentDot + 1) % dots.length;
+      }, 300); // Schnellerer Wechsel für flüssigere Animation
+    }
+
+    function stopDotAnimation() {
+      clearInterval(dotInterval);
+      dotInterval = null;
+      // Optional: Alle Punkte wieder auf den ursprünglichen Zustand setzen
+      const dots = document.querySelectorAll(".typing-indicator span");
+      dots.forEach(dot => {
+        dot.style.opacity = '0.3';
+        dot.style.transform = 'scale(1)';
+        dot.style.boxShadow = 'none';
+      });
+    }
+
+
+    // Initialen Zustand für den Senden-Button und das Nachrichtenfeld festlegen
+    document.addEventListener("DOMContentLoaded", () => {
+        // Initialen Zustand des Buttons setzen (Papierflieger)
+        updateButtonIcon('ready');
+    });
+  </script>
+</body>
+</html>
