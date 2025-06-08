@@ -276,6 +276,21 @@
       background-color: #5a6268;
     }
 
+
+        .small-disclaimer-text {
+      font-size: 0.75em; /* Noch kleiner als der obere Hinweis */
+      color: #999;
+      text-align: center;
+      margin-top: 0.5rem; /* Wenig Abstand zum Eingabefeld */
+      margin-bottom: 1rem;
+      padding: 0 0.5rem; /* Wenig Padding */
+    }
+
+    .small-disclaimer-text .fas {
+      margin-right: 4px;
+      color: #bbbb00; /* Gelb-Ton für das Warn-Icon */
+    }
+
         /* --- Footer Styles --- */
     .app-footer {
       text-align: center;
@@ -369,6 +384,12 @@
       </div>
     </div>
   </div>
+
+
+  </div> <p class="small-disclaimer-text">
+        <i class="fas fa-exclamation-triangle"></i> Antworten können fehlerhaft sein. Bitte überprüfe wichtige Informationen.
+      </p>
+      </div>
 
       </div> <footer class="app-footer">
       <div class="footer-links">
@@ -841,7 +862,7 @@
         const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
           method: "POST",
           headers: {
-            "Authorization": "Bearer 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", // Dein API-Schlüssel
+            "Authorization": "Bearer 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", // Dein API-Schlüssel
             "Content-Type": "application/json"
           },
           signal: abortController.signal,
