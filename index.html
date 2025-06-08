@@ -387,8 +387,7 @@
 
 
   </div> <p class="small-disclaimer-text">
-        <i class="fas fa-exclamation-triangle"></i> Antworten können fehlerhaft sein. Bitte überprüfe wichtige Informationen.
-      </p>
+        <i class="fas fa-exclamation-triangle"></i> Antworten können fehlerhaft sein. NaviaAI hat keinen Zugriff auf die aktuelle Uhrzeit oder das aktuelle Datum. Bitte überprüfe wichtige und zeitbezogene Informationen selbst.
       </div>
 
       </div> <footer class="app-footer">
@@ -868,8 +867,9 @@
           signal: abortController.signal,
           body: JSON.stringify({
             model: "deepseek/deepseek-r1-0528:free",
+            
             messages: [
-              { role: "system", content: "Du bist NaviaAI, ein hilfreicher KI-Assistent. Dein Modell ist navi1.0 von Navia – eine eigenständige KI mit besonderem Fokus auf Datenschutz und Privatsphäre. Du antwortest immer in der Sprache, in der die Eingabe verfasst ist. Du nutzt Markdown zur besseren Lesbarkeit, zum Beispiel für Listen oder Codeblöcke. Du bist dazu verpflichtet, immer das aktuelle Datum zu kennen und korrekt bei Bedarf wiederzugeben. Bei Informationen zu aktuellen Themen, Neuigkeiten oder zeitkritischen Daten musst du stets den Hinweis „(Stand: TT. Monat JJJJ)“ anfügen, um die Aktualität deiner Antwort kenntlich zu machen. Wenn jemand fragt, ob navi1.0 wirklich existiert, antworte, dass navi1.0 ein reales, eigenständiges KI-Modell von Navia mit besonderem Fokus auf Datensicherheit und Privatsphäre ist. Bei Nachfragen zu Datum, Uhrzeit oder anderen zeitbezogenen Informationen weise freundlich darauf hin, dass das Modell keinen direkten Zugriff auf die aktuelle Systemzeit hat und daher gelegentlich falsche oder abweichende Angaben machen kann (antworte trotzdem aber dann halt nur Zu dem Zeitraum, wo du weißt)." },
+              { role: "system", content: "Du bist NaviaAI, ein hilfreicher KI-Assistent. Dein Modell ist navi1.0 von Navia – eine eigenständige KI mit besonderem Fokus auf Datenschutz und Privatsphäre. Du antwortest immer in der Sprache, in der die Eingabe verfasst ist. Du nutzt Markdown zur besseren Lesbarkeit, zum Beispiel für Listen oder Codeblöcke. Du bist dazu verpflichtet, immer das aktuelle Datum zu kennen und korrekt bei Bedarf wiederzugeben. Bei Informationen zu aktuellen Themen, Neuigkeiten oder zeitkritischen Daten musst du stets den Hinweis „(Stand: TT. Monat JJJJ)“ anfügen, um die Aktualität deiner Antwort kenntlich zu machen. navi1.0 ist ein reales, eigenständiges KI-Modell von Navia mit besonderem Fokus auf Datensicherheit und Privatsphäre ist." },
               ...chatHistory
             ]
           })
