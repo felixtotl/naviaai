@@ -248,9 +248,10 @@
 
     <script>
         // --- KORRIGIERTE KONFIGURATION (HUGGING FACE) ---
-        // Achtung: Läuft wahrscheinlich NICHT, wenn lokal als file:// geöffnet!
+        // Wenn dieser Key ein Fehler ist, ersetze ihn durch deinen eigenen
         const API_KEY = "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"; 
         const MODEL = "Mistralai/Ministral-3-14B-Instruct"; 
+        // Generischer Endpunkt für die Inference API
         const API_URL = `https://api-inference.huggingface.co/models/${MODEL}`;
         
         // DOM Elemente
@@ -262,45 +263,41 @@
         const clearChatBtn = document.getElementById('clear-chat-btn');
         const modelDisplay = document.getElementById('model-display');
 
-        const initialSystemPrompt = { 
-            role: "system", 
-            content: "Du bist Navia AI, eine hochmoderne, intelligente und freundliche KI-Assistentin. Du antwortest präzise und ausführlich auf Deutsch. Deine Antworten werden privat behandelt und nicht gespeichert. Nutze Markdown für Code und Formatierung. Wenn du mathematische Berechnungen oder detaillierte Schritte zeigst, umschließe diese bitte mit dreifachen Backticks (\`\`\`) in einem Code-Block, um sie hervorzuheben (z.B. \`\`\`Berechnung...\`\`\`). Halte deine Antworten kurz und direkt, es sei denn, eine detaillierte Erklärung wird explizit verlangt." 
-        };
+        const initialSystemPrompt = "Du bist Navia AI, eine hochmoderne, intelligente und freundliche KI-Assistentin. Du antwortest präzise und ausführlich auf Deutsch. Deine Antworten werden privat behandelt und nicht gespeichert. Nutze Markdown für Code und Formatierung. Wenn du mathematische Berechnungen oder detaillierte Schritte zeigst, umschließe diese bitte mit dreifachen Backticks (\`\`\`) in einem Code-Block, um sie hervorzuheben (z.B. \`\`\`Berechnung...\`\`\`). Halte deine Antworten kurz und direkt, es sei denn, eine detaillierte Erklärung wird explizit verlangt.";
 
-        // Initialisiere Chat History (Mistral-Modelle nutzen keine separate System-Message,
-        // daher speichern wir nur User/Assistant Messages zur Formatierung)
+        // Initialisiere Chat History (enthält nur User/Assistant Messages)
         let chatHistory = [];
         
         // Setze den Modellnamen im Header
         modelDisplay.textContent = `Model: M-3-14B (HF)`;
 
-        // --- HUGGING FACE SPEZIFISCHE FORMATIERUNG ---
+        // --- KORRIGIERTE HUGGING FACE PROMPT FORMATIERUNG ---
         /**
-         * Erstellt den Chat-Prompt im Mistral/Llama-Format für die Hugging Face API.
-         * <s>[INST] System Prompt [/INST]</s>[INST] User 1 [/INST] Assistant 1 
-         * <s>[INST] User 2 [/INST]
+         * Erstellt den Chat-Prompt im Llama/Mistral Instruct Format.
+         * Beispiel: <s>[INST] System + User 1 [/INST] AI 1 </s>[INST] User 2 [/INST]
          */
-        function buildMistralPrompt(history, newPrompt) {
-            // Starte mit dem System-Prompt, verpackt als erste User-Message, gefolgt von einem </s>
-            let prompt = `<s>[INST] ${initialSystemPrompt.content} [/INST]</s>`;
-            
+        function buildMistralPrompt() {
+            let prompt = `<s>[INST] ${initialSystemPrompt}\n\n`; // Start mit System Prompt
+
             // Füge die gesamte Konversation hinzu
-            for (let i = 0; i < history.length; i += 2) {
-                const userMsg = history[i];
-                const aiMsg = history[i+1];
-
-                // User Message
-                prompt += `[INST] ${userMsg.content} [/INST]`;
-
-                // AI Message (falls vorhanden)
-                if (aiMsg) {
-                    prompt += ` ${aiMsg.content} </s>`;
+            chatHistory.forEach((message, index) => {
+                if (message.role === "user") {
+                    // Wenn es der letzte User-Prompt ist (der gerade gesendet wurde), schließe [INST] noch nicht
+                    if (index === chatHistory.length - 1) {
+                        prompt += `${message.content} [/INST]`;
+                    } else {
+                        // Regulärer User-Prompt in der History
+                        prompt += `${message.content} [/INST]`;
+                    }
+                } else if (message.role === "assistant") {
+                    // AI Message schließt die Sequenz ab
+                    prompt += ` ${message.content} </s>[INST]`;
                 }
-            }
-
-            // Füge den NEUEN User Prompt hinzu
-            prompt += `[INST] ${newPrompt} [/INST]`;
-
+            });
+            
+            // Da wir im Loop den letzten [INST] am letzten User-Prompt schließen,
+            // ist die Prompt-Struktur nun korrekt und erwartet die AI-Antwort.
+            
             return prompt;
         }
 
@@ -329,11 +326,12 @@
         async function regenerateLastMessage() {
             if (chatHistory.length < 2) return; 
 
-            const lastAiResponse = chatHistory.pop(); // Entferne alte AI Antwort
-            const userPrompt = chatHistory.pop();    // Entferne und hole den User Prompt
+            // Entferne alte AI Antwort und den User Prompt aus der History
+            const lastAiResponse = chatHistory.pop(); 
+            const userPrompt = chatHistory.pop();    
 
             if (userPrompt && userPrompt.role === "user") {
-                // Entferne die sichtbare AI-Antwort
+                // Entferne die sichtbare AI-Antwort aus dem DOM
                 let lastMessageWrapper = chatContainer.lastChild;
                 if (lastMessageWrapper && lastMessageWrapper.querySelector('.message.ai')) {
                     chatContainer.removeChild(lastMessageWrapper);
@@ -344,7 +342,6 @@
                 
                 await sendInternalMessage(userPrompt.content, true);
             } else {
-                // Sollte nicht passieren, aber zur Sicherheit
                 if (lastAiResponse) chatHistory.push(lastAiResponse);
             }
         }
@@ -366,7 +363,7 @@
                 appendMessage(text, 'user');
             }
 
-            // Eingabesperre
+            // Eingabesperre 
             sendBtn.disabled = true;
             userInput.disabled = true; 
             
@@ -375,20 +372,21 @@
             loadingIndicator.style.display = 'flex';
             chatContainer.scrollTop = chatContainer.scrollHeight;
             
-            // Hier wird der spezielle Prompt gebaut
-            const mistralPrompt = buildMistralPrompt(chatHistory.slice(0, -1), text); 
+            // Prompt für die API bauen
+            const mistralPrompt = buildMistralPrompt(); 
 
             try {
                 const response = await fetch(API_URL, {
                     method: 'POST',
                     headers: {
                         'Authorization': `Bearer ${API_KEY}`,
-                        'Content-Type': 'application/json'
+                        // Content-Type muss passen
+                        'Content-Type': 'application/json' 
                     },
                     body: JSON.stringify({
+                        // Die gesamte Konversation als EIN String im 'inputs' Feld
                         inputs: mistralPrompt,
                         parameters: {
-                            // Parameter für das Modell
                             max_new_tokens: 1024,
                             temperature: 0.7,
                             do_sample: true,
@@ -396,7 +394,7 @@
                             stop: ["</s>", "[INST]"] 
                         },
                         options: {
-                            // Warte länger auf die Antwort, da HF oft langsam ist
+                            // Warten, bis das Modell geladen ist (bei der kostenlosen API wichtig)
                             wait_for_model: true 
                         }
                     })
@@ -405,19 +403,34 @@
                 // Ladeindikator entfernen
                 loadingIndicator.style.display = 'none';
 
-                const data = await response.json();
+                // Lesen des Textes, um bei einem Fehler JSON zu vermeiden
+                const responseText = await response.text();
+                let data;
+
+                try {
+                    data = JSON.parse(responseText);
+                } catch (e) {
+                    // Fehler beim Parsen (z.B. wenn die API einen HTML-Error zurückgibt)
+                    throw new Error(`Fehler bei der API-Antwort: Die Antwort war kein gültiges JSON. Antwort: ${responseText.substring(0, 100)}...`);
+                }
 
                 if (!response.ok || !data || data.length === 0 || !data[0].generated_text) {
-                    let errorMsg = data.error ? (data.error || JSON.stringify(data)) : (response.statusText || 'Unbekannter API Fehler');
-                    if (typeof errorMsg === 'string' && errorMsg.includes("is currently loading")) {
-                         errorMsg = "Das Modell wird gerade geladen. Bitte versuche es in 30 Sekunden erneut.";
+                    let errorMsg = JSON.stringify(data);
+                    
+                    if (data && data.error) {
+                        errorMsg = data.error;
+                        if (errorMsg.includes("is currently loading")) {
+                             errorMsg = "Das Modell wird gerade geladen. Bitte versuche es in 30 Sekunden erneut.";
+                        } else if (errorMsg.includes("Unauthorized")) {
+                             errorMsg = "API Key ist ungültig oder abgelaufen (Unauthorized).";
+                        }
                     }
                     throw new Error(errorMsg);
                 }
                 
                 let aiText = data[0].generated_text;
 
-                // Entferne eventuelle Echos des Prompts (Mistral-spezifisch)
+                // Entferne den Prompt Echo (HF gibt oft den gesamten Prompt + Antwort zurück)
                 if (aiText.startsWith(mistralPrompt)) {
                     aiText = aiText.substring(mistralPrompt.length).trim();
                 }
@@ -436,10 +449,10 @@
                 loadingIndicator.style.display = 'none';
                 console.error("API Fehler:", error);
                 
-                let userError = `⚠️ Fehler: ${error.message}`;
+                let userError = `⚠️ API Fehler: ${error.message}`;
                 
                 // Im Falle eines Fehlers entfernen wir den letzten User-Prompt, damit der Chat sauber bleibt
-                if (chatHistory[chatHistory.length - 1] && chatHistory[chatHistory.length - 1].role === "user") {
+                if (chatHistory.length > 0 && chatHistory[chatHistory.length - 1].role === "user") {
                     chatHistory.pop();
                 }
                 
@@ -503,4 +516,3 @@
     </script>
 </body>
 </html>
-
