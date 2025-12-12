@@ -247,11 +247,10 @@
     </div>
 
     <script>
-        // --- KORRIGIERTE KONFIGURATION (HUGGING FACE) ---
-        // Wenn dieser Key ein Fehler ist, ersetze ihn durch deinen eigenen
-        const API_KEY = "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"; 
-        const MODEL = "Mistralai/Ministral-3-14B-Instruct"; 
-        // Generischer Endpunkt für die Inference API
+        // --- KORRIGIERTE KONFIGURATION AUF MISTRAL-7B-INSTRUCT-V0.1 ---
+        // BITTE ERSETZE DEN PLATZHALTER DURCH DEINEN ECHTEN, GÜLTIGEN HUGGING FACE TOKEN!
+        const API_KEY = "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"; 
+        const MODEL = "mistralai/Ministral-3-14B-Instruct-2512"; 
         const API_URL = `https://api-inference.huggingface.co/models/${MODEL}`;
         
         // DOM Elemente
@@ -269,35 +268,27 @@
         let chatHistory = [];
         
         // Setze den Modellnamen im Header
-        modelDisplay.textContent = `Model: M-3-14B (HF)`;
+        modelDisplay.textContent = `Model: M-7B-v0.1 (HF)`;
 
-        // --- KORRIGIERTE HUGGING FACE PROMPT FORMATIERUNG ---
-        /**
-         * Erstellt den Chat-Prompt im Llama/Mistral Instruct Format.
-         * Beispiel: <s>[INST] System + User 1 [/INST] AI 1 </s>[INST] User 2 [/INST]
-         */
+        // --- HUGGING FACE PROMPT FORMATIERUNG (Mistral Instruct) ---
         function buildMistralPrompt() {
-            let prompt = `<s>[INST] ${initialSystemPrompt}\n\n`; // Start mit System Prompt
+            // Starte mit dem System-Prompt innerhalb der ersten [INST] Tags
+            let prompt = `<s>[INST] ${initialSystemPrompt}\n\n`; 
 
-            // Füge die gesamte Konversation hinzu
             chatHistory.forEach((message, index) => {
                 if (message.role === "user") {
-                    // Wenn es der letzte User-Prompt ist (der gerade gesendet wurde), schließe [INST] noch nicht
+                    // Der letzte User-Prompt schließt die Sequenz für die KI-Antwort ab
                     if (index === chatHistory.length - 1) {
                         prompt += `${message.content} [/INST]`;
                     } else {
-                        // Regulärer User-Prompt in der History
+                        // Alle vorherigen User-Prompts
                         prompt += `${message.content} [/INST]`;
                     }
                 } else if (message.role === "assistant") {
-                    // AI Message schließt die Sequenz ab
+                    // AI Message schließt die Sequenz ab und beginnt die nächste [INST]
                     prompt += ` ${message.content} </s>[INST]`;
                 }
             });
-            
-            // Da wir im Loop den letzten [INST] am letzten User-Prompt schließen,
-            // ist die Prompt-Struktur nun korrekt und erwartet die AI-Antwort.
-            
             return prompt;
         }
 
@@ -322,22 +313,19 @@
             userInput.focus();
         });
 
-        // Regenerierung (holt den letzten User Prompt aus der History)
+        // Regenerierung 
         async function regenerateLastMessage() {
             if (chatHistory.length < 2) return; 
 
-            // Entferne alte AI Antwort und den User Prompt aus der History
             const lastAiResponse = chatHistory.pop(); 
             const userPrompt = chatHistory.pop();    
 
             if (userPrompt && userPrompt.role === "user") {
-                // Entferne die sichtbare AI-Antwort aus dem DOM
                 let lastMessageWrapper = chatContainer.lastChild;
                 if (lastMessageWrapper && lastMessageWrapper.querySelector('.message.ai')) {
                     chatContainer.removeChild(lastMessageWrapper);
                 }
                 
-                // Füge den User Prompt für die neue Anfrage wieder hinzu
                 chatHistory.push(userPrompt);
                 
                 await sendInternalMessage(userPrompt.content, true);
@@ -350,98 +338,95 @@
         async function sendInternalMessage(text, isRegeneration = false) {
             if (!text || sendBtn.disabled) return;
 
-            // Wenn es eine neue Nachricht ist, füge sie dem Chat hinzu
+            // WARNUNG VOR UNGÜLTIGEM API KEY
+            if (API_KEY === "DEIN_HUGGINGFACE_TOKEN_HIER") {
+                 appendMessage("⚠️ **FEHLER:** Bitte ersetze den Platzhalter 'DEIN_HUGGINGFACE_TOKEN_HIER' durch deinen echten Hugging Face API Token im Code.", 'ai');
+                 return;
+            }
+
             if (!isRegeneration) {
                 if (welcomeScreen) welcomeScreen.style.display = 'none';
                 userInput.value = '';
                 userInput.style.height = '1.5em';
                 
-                // Füge die User Message zur History hinzu
                 chatHistory.push({ role: "user", content: text });
-
-                // Zeige die User Message im Chat an
                 appendMessage(text, 'user');
             }
 
-            // Eingabesperre 
             sendBtn.disabled = true;
             userInput.disabled = true; 
             
-            // Ladeindikator in den Chat einfügen
             chatContainer.appendChild(loadingIndicator);
             loadingIndicator.style.display = 'flex';
             chatContainer.scrollTop = chatContainer.scrollHeight;
             
-            // Prompt für die API bauen
             const mistralPrompt = buildMistralPrompt(); 
 
             try {
+                // Führen Sie den Fetch-Request mit einem Timeout durch
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 Sekunden Timeout
+
                 const response = await fetch(API_URL, {
                     method: 'POST',
                     headers: {
                         'Authorization': `Bearer ${API_KEY}`,
-                        // Content-Type muss passen
                         'Content-Type': 'application/json' 
                     },
                     body: JSON.stringify({
-                        // Die gesamte Konversation als EIN String im 'inputs' Feld
                         inputs: mistralPrompt,
                         parameters: {
                             max_new_tokens: 1024,
                             temperature: 0.7,
                             do_sample: true,
-                            // Wichtig für Chat: Stoppe bei der nächsten User-Sequenz
                             stop: ["</s>", "[INST]"] 
                         },
                         options: {
-                            // Warten, bis das Modell geladen ist (bei der kostenlosen API wichtig)
                             wait_for_model: true 
                         }
-                    })
+                    }),
+                    signal: controller.signal // Verbinden Sie den Request mit dem Timeout
                 });
 
-                // Ladeindikator entfernen
+                clearTimeout(timeoutId); // Timeout löschen, wenn die Antwort schnell genug war
                 loadingIndicator.style.display = 'none';
 
-                // Lesen des Textes, um bei einem Fehler JSON zu vermeiden
                 const responseText = await response.text();
                 let data;
+
+                if (!response.ok) {
+                    // Behandeln Sie Nicht-200-Statuscodes (z.B. 401, 503)
+                    let errorMsg;
+                    try {
+                        data = JSON.parse(responseText);
+                        errorMsg = data.error || JSON.stringify(data);
+                    } catch (e) {
+                        errorMsg = `Serverfehler: Status ${response.status} ${response.statusText}. Antwort: ${responseText.substring(0, 100)}...`;
+                    }
+                    throw new Error(errorMsg);
+                }
 
                 try {
                     data = JSON.parse(responseText);
                 } catch (e) {
-                    // Fehler beim Parsen (z.B. wenn die API einen HTML-Error zurückgibt)
-                    throw new Error(`Fehler bei der API-Antwort: Die Antwort war kein gültiges JSON. Antwort: ${responseText.substring(0, 100)}...`);
+                    throw new Error(`Fehler bei der API-Antwort: Konnte JSON nicht parsen. Server antwortete möglicherweise mit einem Timeout.`);
                 }
-
-                if (!response.ok || !data || data.length === 0 || !data[0].generated_text) {
-                    let errorMsg = JSON.stringify(data);
-                    
-                    if (data && data.error) {
-                        errorMsg = data.error;
-                        if (errorMsg.includes("is currently loading")) {
-                             errorMsg = "Das Modell wird gerade geladen. Bitte versuche es in 30 Sekunden erneut.";
-                        } else if (errorMsg.includes("Unauthorized")) {
-                             errorMsg = "API Key ist ungültig oder abgelaufen (Unauthorized).";
-                        }
-                    }
-                    throw new Error(errorMsg);
+                
+                if (data.length === 0 || !data[0].generated_text) {
+                    throw new Error("API hat keine generierte Textantwort zurückgegeben.");
                 }
                 
                 let aiText = data[0].generated_text;
 
-                // Entferne den Prompt Echo (HF gibt oft den gesamten Prompt + Antwort zurück)
+                // Prompt Echo entfernen
                 if (aiText.startsWith(mistralPrompt)) {
                     aiText = aiText.substring(mistralPrompt.length).trim();
                 }
                 
-                // Entferne alle Reste der Stopp-Tokens
                 aiText = aiText.replace(/<\/s>|\[INST\]/g, '').trim();
 
-                // Füge die KI-Antwort zur History hinzu
                 chatHistory.push({ role: "assistant", content: aiText });
                 
-                // Zeige die KI-Antwort an
                 const lastUserPromptContent = chatHistory[chatHistory.length - 2].content;
                 appendMessage(aiText, 'ai', lastUserPromptContent); 
 
@@ -450,8 +435,14 @@
                 console.error("API Fehler:", error);
                 
                 let userError = `⚠️ API Fehler: ${error.message}`;
+
+                if (error.name === 'AbortError') {
+                    userError = `⚠️ Timeout-Fehler: Die Hugging Face API hat innerhalb von 60 Sekunden keine Antwort gesendet. Bitte versuchen Sie es erneut oder warten Sie auf geringere Serverlast.`;
+                } else if (userError.includes("Unauthorized")) {
+                    userError = `⚠️ API Fehler: Dein API Key ist ungültig oder abgelaufen (Unauthorized).`;
+                }
                 
-                // Im Falle eines Fehlers entfernen wir den letzten User-Prompt, damit der Chat sauber bleibt
+                // Entferne den User Prompt bei einem Fehler, um die History nicht zu verfälschen
                 if (chatHistory.length > 0 && chatHistory[chatHistory.length - 1].role === "user") {
                     chatHistory.pop();
                 }
@@ -474,11 +465,9 @@
             if (sender === 'ai') {
                 msgDiv.innerHTML = marked.parse(text);
 
-                // Aktionen: Kopieren und Regenerieren
                 const actionsDiv = document.createElement('div');
                 actionsDiv.classList.add('message-actions');
 
-                // Kopieren Button
                 const copyBtn = document.createElement('button');
                 copyBtn.classList.add('copy-btn');
                 copyBtn.innerHTML = '<i class="fa-solid fa-copy"></i> Kopieren';
@@ -493,7 +482,6 @@
                 };
                 actionsDiv.appendChild(copyBtn);
 
-                // Regenerieren Button
                 if (userPrompt) {
                      const regenerateBtn = document.createElement('button');
                      regenerateBtn.classList.add('copy-btn', 'regenerate-btn');
