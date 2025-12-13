@@ -1547,35 +1547,34 @@
         }
         
         // Führt den API-Aufruf aus (Generierung ODER Überprüfung)
-
             async function runApiCall(messages, signal, temp = 0.7) {
-                // URL ist jetzt der Proxy /api/chat
-                const response = await fetch(API_URL, { 
+                const response = await fetch(API_URL, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
-                        // !!! WICHTIG: Authorization-Header ENTFERNT, da der Proxy ihn hinzufügt
+                        'Content-Type': 'application/json'
+                        // KEIN Authorization Header hier! Das macht das Backend.
                     },
                     body: JSON.stringify({
-                        // Senden Sie die zusätzlichen Parameter an den Proxy, 
-                        // damit dieser den korrekten Aufruf machen kann
-                        messages: messages,
                         model: MODEL,
+                        messages: messages,
                         max_tokens: 1024,
                         temperature: temp
                     }),
-                    signal: signal
+                    signal: signal // WICHTIG für das Abbrechen
                 });
             
                 if (!response.ok) {
-                    // ... (Rest der Fehlerbehandlung bleibt) ...
                     const errorBody = await response.json();
                     throw new Error(`API-Fehler (${response.status}): ${errorBody.error || response.statusText}`);
                 }
-
-            const result = await response.json();
-            return result.choices[0].message.content;
-        }
+            
+                const result = await response.json();
+                // Sicherheitscheck, falls die API Struktur sich ändert
+                if (!result.choices || !result.choices[0]) {
+                    throw new Error("Ungültige Antwort vom Server");
+                }
+                return result.choices[0].message.content;
+            }
 
 
         // --- Haupt-Sende-Funktion ---
