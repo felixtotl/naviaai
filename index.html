@@ -617,9 +617,10 @@
 
         // =========================================================================
         // 🚨 WICHTIG: Der API-Key WIRD HIER ENTFERNT und ist jetzt im Vercel-Proxy!
-        const API_KEY = ""; // WICHTIG: Hier leeren ODER löschen!
-        const API_URL = "/api/chat"; // NEU: Zeigt auf Ihre lokale Vercel Serverless Function
-        const MODEL = "meta-llama/Llama-3.1-70B-Instruct"; // Kann bleiben, da er im Proxy verwendet wird
+        // 🚨 API Key hier LÖSCHEN. Er liegt jetzt sicher bei Vercel in den Environment Variables.
+        const API_KEY = ""; 
+        const API_URL = "/api/chat"; // Zeigt auf Ihre lokale Datei
+        const MODEL = "meta-llama/Llama-3.1-70B-Instruct"; 
         const IMPROVE_MODEL = "meta-llama/Llama-3.1-70B-Instruct";
         
         // Benutzerdefinierte Fehlercodes (3-stellig)
