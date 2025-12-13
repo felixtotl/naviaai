@@ -614,11 +614,13 @@
         // =========================================================================
         // KONSTANTEN & FEHLER CODES
         // =========================================================================
-        // 🚨 WICHTIG: Ersetzen Sie den Platzhalter-Schlüssel unten durch Ihren eigenen, gültigen API-Schlüssel.
-        const API_KEY = "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"; 
-        const API_URL = "https://router.huggingface.co/v1/chat/completions";
-        const MODEL = "meta-llama/Llama-3.1-70B-Instruct";
-        const IMPROVE_MODEL = "meta-llama/Llama-3.1-70B-Instruct"; 
+
+        // =========================================================================
+        // 🚨 WICHTIG: Der API-Key WIRD HIER ENTFERNT und ist jetzt im Vercel-Proxy!
+        const API_KEY = ""; // WICHTIG: Hier leeren ODER löschen!
+        const API_URL = "/api/chat"; // NEU: Zeigt auf Ihre lokale Vercel Serverless Function
+        const MODEL = "meta-llama/Llama-3.1-70B-Instruct"; // Kann bleiben, da er im Proxy verwendet wird
+        const IMPROVE_MODEL = "meta-llama/Llama-3.1-70B-Instruct";
         
         // Benutzerdefinierte Fehlercodes (3-stellig)
         const ERROR_CODES = {
@@ -1544,26 +1546,31 @@
         }
         
         // Führt den API-Aufruf aus (Generierung ODER Überprüfung)
-        async function runApiCall(messages, signal, temp = 0.7) {
-            const response = await fetch(API_URL, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${API_KEY}`
-                },
-                body: JSON.stringify({
-                    model: MODEL,
-                    messages: messages,
-                    max_tokens: 1024,
-                    temperature: temp
-                }),
-                signal: signal
-            });
 
-            if (!response.ok) {
-                const errorBody = await response.json();
-                throw new Error(`API-Fehler (${response.status}): ${errorBody.error || response.statusText}`);
-            }
+            async function runApiCall(messages, signal, temp = 0.7) {
+                // URL ist jetzt der Proxy /api/chat
+                const response = await fetch(API_URL, { 
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        // !!! WICHTIG: Authorization-Header ENTFERNT, da der Proxy ihn hinzufügt
+                    },
+                    body: JSON.stringify({
+                        // Senden Sie die zusätzlichen Parameter an den Proxy, 
+                        // damit dieser den korrekten Aufruf machen kann
+                        messages: messages,
+                        model: MODEL,
+                        max_tokens: 1024,
+                        temperature: temp
+                    }),
+                    signal: signal
+                });
+            
+                if (!response.ok) {
+                    // ... (Rest der Fehlerbehandlung bleibt) ...
+                    const errorBody = await response.json();
+                    throw new Error(`API-Fehler (${response.status}): ${errorBody.error || response.statusText}`);
+                }
 
             const result = await response.json();
             return result.choices[0].message.content;
