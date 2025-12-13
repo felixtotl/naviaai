@@ -964,7 +964,8 @@
         });
         
         deleteAllMemoriesBtn.addEventListener('click', deleteAllMemories);
-        
+
+       
         // =========================================================================
         // KI FUNKTIONEN: TTS (VORLESEN) & ASR (SPRACHEINGABE)
         // =========================================================================
@@ -1449,49 +1450,44 @@
             isGenerating = true; // Blockiere Senden während des Mock-Kürzens
             sendBtn.disabled = true;
 
-                    async function summarizeMessage(originalText, wrapperElement) {
+            async function summarizeMessage(originalText, wrapperElement) {
             if (isGenerating) return;
-
+        
             stopSpeech();
-            isGenerating = true;
-            sendBtn.disabled = true;
-
-            wrapperElement.querySelector('.message.ai').innerHTML = '<em>Wird gekürzt...</em>';
+            isGenerating = true; 
+            sendBtn.disabled = true; // User sperren während Kürzen
+        
+            // UI Feedback
+            const msgDiv = wrapperElement.querySelector('.message.ai');
+            msgDiv.innerHTML = '<em><i class="fa-solid fa-scissors"></i> Wird gekürzt...</em>';
             wrapperElement.querySelector('.message-actions').innerHTML = '';
-
+        
+            // Prompt für das Kürzen
             const summarizePrompt = [
                 {
-                role: "system",
-                content: "Fasse den folgenden Text sehr kurz zusammen. Nutze maximal 3 Stichpunkte. Keine Einleitung."
+                    role: "system",
+                    content: "Fasse den folgenden Text extrem kurz zusammen. Nutze maximal 3 kurze Stichpunkte. Keine Einleitung, kein 'Hier ist die Zusammenfassung'."
                 },
-                {
-                role: "user",
-                content: originalText
-                }
+                { role: "user", content: originalText }
             ];
-
+        
             try {
-                const summaryText = await runApiCall(
-                summarizePrompt,
-                null,
-                0.3
-                );
-
-                wrapperElement.querySelector('.message.ai').innerHTML =
-                marked.parse(summaryText);
-
-                const actions = wrapperElement.querySelector('.message-actions');
-                actions.appendChild(createCopyButton(summaryText));
-                actions.appendChild(createSpeakButton(summaryText));
-
+                // Nutzt jetzt auch die /api/chat route via runApiCall
+                const summaryText = await runApiCall(summarizePrompt, null, 0.3);
+        
+                // Ergebnis anzeigen
+                replaceMessage(summaryText, wrapperElement, wrapperElement.getAttribute('data-message-id'));
+        
             } catch (error) {
-                showError(ERROR_CODES.SUMMARIZE_ERROR);
+                console.error(error);
+                msgDiv.innerHTML = originalText; // Fehler? Originaltext wiederherstellen
+                appendMessage(`❌ Fehler beim Kürzen: ${error.message}`, 'ai', null, true);
+                // Actions wiederherstellen
+                replaceActions(wrapperElement, originalText);
             } finally {
                 isGenerating = false;
                 sendBtn.disabled = false;
             }
-            }
-
         }
         
         function regenerateMessage(aiWrapper) {
@@ -1578,101 +1574,128 @@
 
 
         // --- Haupt-Sende-Funktion ---
-        async function sendInternalMessage(text, isRegeneration = false, wrapperToReplace = null, isVoiceInput = false, existingAiId = null) {
-            if (!text) return; 
-
-            // Prüfen, ob eine Generierung läuft (falls man durch Voice/Suggestion reinkommt)
-            if (isGenerating && !sendBtn.classList.contains('abort-mode')) {
-                 return;
+         // =========================================================================
+        // WICHTIG: DIE KOMPLETTE FUNKTION ERSETZEN
+        // =========================================================================
+        
+        async function sendInternalMessage(text, isRegenerate = false, wrapperToReplace = null) {
+            if (isGenerating && !isRegenerate) {
+                // Im Falle einer laufenden Generierung (außer Regenerierung) abbrechen.
+                forceAbort();
+                return;
             }
             
-            // NEU: Sicherheitsscheck für Code/Config-Anfragen
-            if (checkRestrictedContent(text)) {
-                // Keine Tokens zählen, keine History speichern
-                appendMessage(RESTRICTION_RESPONSE, 'ai', null, true, generateUniqueId()); 
-                userInput.value = '';
-                userInput.style.height = '1.5em';
-                userInput.focus();
-                return; 
-            }
-
-
-            stopSpeech(); 
-            stopRecognition(); 
+            // Globale Zustände setzen
+            isGenerating = true;
+            sendBtn.disabled = true;
+            abortController = new AbortController();
             
-            // Cleanup UI
-            originalPrompt = '';
-            undoImproveBtn.style.display = 'none';
-            improvePromptBtn.style.display = 'flex';
-            if (welcomeScreen.parentNode === chatContainer) {
-                 welcomeScreen.style.display = 'none';
-                 welcomeScreen.classList.add('hidden');
-            }
-            
-            const userMessageId = isRegeneration ? existingAiId : generateUniqueId();
-            const aiMessageId = existingAiId || generateUniqueId();
-            let currentTempMode = currentMode; 
-
-            // Initialen User-Prompt zur History hinzufügen und UI aktualisieren (nur bei Neu-Sendung)
-            if (!isRegeneration) {
-                chatHistory.push({ role: "user", content: text, id: userMessageId });
-                saveChatHistory(); 
-                
-                userInput.value = '';
-                userInput.style.height = '1.5em';
-                appendMessage(text, 'user', userMessageId); 
-                totalTokens += countTokens(text);
-                tokenDisplay.textContent = `Tokens: ${totalTokens}`;
-            } else {
-                // Bei Regeneration nur Tokens des User-Prompts hinzufügen, da der AI-Teil gleich folgt
-                totalTokens += countTokens(text);
-                tokenDisplay.textContent = `Tokens: ${totalTokens}`;
-            }
-
-            // UI für Ladevorgang setzen
-            isGenerating = true; // Generierung beginnt
-            sendBtn.disabled = true; // Senden blockiert, bis Generierung fertig ist
-            abortController = new AbortController(); 
+            // UI auf Abbrechen-Modus setzen
             sendBtn.classList.add('abort-mode');
             sendBtn.innerHTML = '<i class="fa-solid fa-stop"></i>';
-            sendBtn.title = 'Antwort abbrechen';
-            
-            if (wrapperToReplace) {
-                 wrapperToReplace.querySelector('.message.ai').innerHTML = `<em>Antwort wird ${currentTempMode === 'smart' ? 'geprüft und' : ''} geladen...</em>`;
-                 wrapperToReplace.querySelector('.message-actions').innerHTML = ''; 
-            } else {
-                chatContainer.appendChild(loadingIndicator);
-                loadingIndicator.style.display = 'flex';
-            }
-            chatContainer.scrollTop = chatContainer.scrollHeight;
-            
-            const systemPrompts = getSystemPrompt(); 
+            loadingIndicator.style.display = 'block';
+        
             let finalAiText = '';
-
+            let totalTokens = 0;
+            
+            // Füge die User-Nachricht zur Historie hinzu, falls nicht regeneriert wird
+            if (!isRegenerate) {
+                chatHistory.push({ role: "user", content: text });
+            }
+        
+            // Stelle den Wrapper für die KI-Antwort bereit
+            let aiWrapper = wrapperToReplace;
+            if (!aiWrapper) {
+                aiWrapper = appendMessage(text, 'user');
+                aiWrapper = appendMessage('<em>Generiere Antwort...</em>', 'ai');
+            } else {
+                // Falls Regenerierung, Inhalt leeren
+                aiWrapper.querySelector('.message.ai').innerHTML = '<em>Generiere Antwort...</em>';
+                aiWrapper.querySelector('.message-actions').innerHTML = '';
+                aiWrapper.setAttribute('data-message-id', Date.now()); // Neue ID für Aktionen
+            }
+        
             try {
-                // --- 0. AUTO-CHECK ---
+                // -----------------------------------------------------------------------------------
+                // 0. AUTO-CHECK LOGIK START (Wenn Modus auf 'auto' steht) - HIER IST DER FIX
+                // -----------------------------------------------------------------------------------
                 if (currentTempMode === 'auto') {
+                    // 1. Die Frage an den Auto-Checker senden
                     const autoCheckMessages = [
                         systemPrompts.auto_checker,
                         { role: "user", content: text } 
                     ];
                     
-                    const autoCheckResult = await runApiCall(autoCheckMessages, abortController.signal, 0.2); // Niedrige Temp für präzise Antwort
-                    
-                    // Wenn die KI NICHT "COMPLEX" antwortet, ist die Antwort direkt trivial.
-                    if (autoCheckResult.trim().toUpperCase() !== 'COMPLEX') {
-                        finalAiText = autoCheckResult.trim();
-                        // Tokens für den Check und die finale Trivial-Antwort zählen
-                        totalTokens += countTokens(autoCheckResult.trim());
-                        // Der Auto-Check ersetzt den Haupt-API-Call, also ist der Modus 'auto' beendet.
+                    // Nutze niedrige Temperatur für präzisen Check
+                    let autoCheckResult = await runApiCall(autoCheckMessages, abortController.signal, 0.2);
+                    autoCheckResult = autoCheckResult.trim();
+        
+                    // 2. Prüfen ob COMPLEX im Ergebnis steht (case insensitive)
+                    if (!autoCheckResult.toUpperCase().includes('COMPLEX')) {
+                        // Es ist NICHT komplex -> Das Ergebnis des Auto-Checks ist die finale Antwort.
+                        finalAiText = autoCheckResult;
+                        totalTokens += countTokens(finalAiText);
                     } else {
-                        // Wenn es komplex ist, fällt der Prozess zum 'fast' Modus zurück
-                        currentTempMode = 'fast'; 
+                        // Es IST komplex -> Wir leiten auf den gewählten Sub-Modus um (fast/smart).
+                        console.log("Auto-Mode: Frage ist komplex. Wechsle zu Smart/Fast...");
+                        currentTempMode = 'fast'; // Setzt den Modus für die nächste Generierung
+                        
                         if (wrapperToReplace) {
-                            wrapperToReplace.querySelector('.message.ai').innerHTML = `<em>Antwort ist komplex. Starte detaillierte ${currentTempMode.toUpperCase()}-Generierung...</em>`;
+                            // UI-Feedback anzeigen, bevor die Haupt-Generierung startet
+                            wrapperToReplace.querySelector('.message.ai').innerHTML = `<em>Frage ist komplex. Analysiere...</em>`;
                         }
+                        // finalAiText bleibt leer, damit der nächste Block die Haupt-Generierung startet
                     }
                 }
+                
+                // -----------------------------------------------------------------------------------
+                // 1. HAUPT-GENERIERUNG (Läuft wenn finalAiText noch leer ist)
+                // -----------------------------------------------------------------------------------
+                if (finalAiText === '') {
+                    // Der System-Prompt des gewählten Modus + die Historie.
+                    const messagesForGeneration = [systemPrompts.base, ...chatHistory];
+                    
+                    // Bestimmt die Temperatur basierend auf dem Modus (fast/smart)
+                    const temp = currentTempMode === 'smart' ? 0.7 : 0.3;
+                    
+                    // API-Aufruf zur Generierung der Antwort
+                    finalAiText = await runApiCall(messagesForGeneration, abortController.signal, temp);
+                    totalTokens += countTokens(finalAiText);
+                }
+        
+                // -----------------------------------------------------------------------------------
+                // 2. ENDE DER GENERIERUNG
+                // -----------------------------------------------------------------------------------
+                // UI und Historie aktualisieren
+                replaceMessage(finalAiText, aiWrapper, aiWrapper.getAttribute('data-message-id'));
+                
+                // Füge die Antwort zur Historie hinzu (erst jetzt, damit der Auto-Check sauber bleibt)
+                chatHistory.push({ role: "assistant", content: finalAiText });
+                saveChatHistory();
+                
+            } catch (error) {
+                if (error.name === 'AbortError') {
+                    finalAiText = "<em>Generierung vom Benutzer abgebrochen.</em>";
+                } else {
+                    console.error('API Error:', error);
+                    finalAiText = `❌ Ein Fehler ist aufgetreten: ${error.message}`;
+                }
+                // Fehler oder Abbruch anzeigen
+                replaceMessage(finalAiText, aiWrapper, aiWrapper.getAttribute('data-message-id'), true);
+        
+            } finally {
+                // UI zurücksetzen
+                isGenerating = false;
+                sendBtn.disabled = false;
+                sendBtn.classList.remove('abort-mode');
+                sendBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i>';
+                loadingIndicator.style.display = 'none';
+                
+                // Tokens und Modus zurücksetzen
+                currentTempMode = tempModeSelect.value;
+                updateTokenCount(totalTokens);
+            }
+        }
 
                 // --- 1. HAUPT-GENERIERUNG (Wenn nicht trivial) ---
                 if (finalAiText === '') {
